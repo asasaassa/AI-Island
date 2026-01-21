@@ -91,7 +91,7 @@ fun TicTacToeScreen(
         // AI Hint
         if (!gameState.isGameOver) {
             Text(
-                text = "Darker cells = AI suggests better moves",
+                text = "밝은 칸 = AI가 추천하는 좋은 수",
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.Gray
             )
@@ -114,15 +114,15 @@ fun TicTacToeScreen(
 @Composable
 fun TicTacToeBoard(
     board: Array<Array<Player>>,
-    predictions: Array<FloatArray>,
+    predictions: Array<DoubleArray>,
     isGameOver: Boolean,
     onCellClick: (Int, Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     // AI 예측 점수를 0-1 범위로 정규화 (시각화를 위해)
     // 빈 칸만 대상으로 최소값과 최대값을 찾음
-    var minPred = Float.MAX_VALUE
-    var maxPred = Float.MIN_VALUE
+    var minPred = Double.MAX_VALUE
+    var maxPred = Double.MIN_VALUE
 
     for (i in 0..2) {
         for (j in 0..2) {
@@ -142,8 +142,8 @@ fun TicTacToeBoard(
                     // 각 셀의 예측 점수를 0-1 범위로 정규화
                     // range가 0이면 (모든 예측이 같으면) 중간값 0.5 사용
                     val normalizedScore = if (board[i][j] == Player.NONE) {
-                        if (range > 0.001f) {
-                            (predictions[i][j] - minPred) / range
+                        if (range > 0.001) {
+                            ((predictions[i][j] - minPred) / range).toFloat()
                         } else {
                             0.5f // 모든 예측이 같으면 중간 회색
                         }
@@ -167,7 +167,7 @@ fun TicTacToeBoard(
  * 게임 보드의 개별 셀 Composable
  *
  * X 또는 O를 표시하거나, 빈 칸인 경우 AI 예측 점수에 따라
- * 배경색을 조절합니다 (어두울수록 좋은 수).
+ * 배경색을 조절합니다 (밝을수록 좋은 수).
  *
  * @param player 현재 셀의 플레이어 (NONE, X, O)
  * @param predictionScore AI 예측 점수 (0-1 정규화됨)
@@ -183,10 +183,10 @@ fun GameCell(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // AI 예측 기반 배경색 (어두울수록 = 점수가 높음 = 좋은 수)
-    // 0.7을 곱하여 너무 어두워지지 않도록 조절
+    // AI 예측 기반 배경색 (밝을수록 = 점수가 높음 = 좋은 수)
+    // 0.3 ~ 1.0 범위로 조절 (너무 어둡거나 밝지 않게)
     val backgroundColor = if (player == Player.NONE && !isGameOver) {
-        val intensity = (1f - predictionScore * 0.7f)
+        val intensity = 0.3f + predictionScore * 0.7f
         Color(intensity, intensity, intensity)
     } else {
         Color.White

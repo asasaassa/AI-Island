@@ -67,9 +67,9 @@ class TicTacToeModel(context: Context) {
      *              - 1 = X
      *              - 2 = O
      * @param currentPlayer 현재 플레이어 (1 = X, 2 = O)
-     * @return 3x3 점수 배열 (각 위치의 점수, 높을수록 좋은 수)
+     * @return 3x3 점수 배열 (각 위치의 점수, 높을수록 좋은 수, 0-1 범위)
      */
-    fun predict(board: Array<IntArray>, currentPlayer: Int): Array<FloatArray> {
+    fun predict(board: Array<IntArray>, currentPlayer: Int): Array<DoubleArray> {
         // 게임 보드를 모델 입력 형식으로 변환
         val input = convertBoardToInput(board, currentPlayer)
 
@@ -79,7 +79,7 @@ class TicTacToeModel(context: Context) {
             Log.d("TicTacToeModel", "  [${input[i][0]}, ${input[i][1]}, ${input[i][2]}]")
         }
 
-        // 출력 배열 준비
+        // 출력 배열 준비 (TFLite는 Float 사용)
         // 입력: [3, 3]
         // 출력: [3, 3]
         val output = Array(3) { FloatArray(3) }
@@ -87,13 +87,27 @@ class TicTacToeModel(context: Context) {
         // TFLite 모델 추론 실행
         interpreter?.run(input, output)
 
-        // 출력 데이터 로그
-        Log.d("TicTacToeModel", "Output data:")
-        for (i in 0..2) {
-            Log.d("TicTacToeModel", "  [${output[i][0]}, ${output[i][1]}, ${output[i][2]}]")
+        // Float를 Double로 변환 (더 정확한 계산을 위해)
+        val doubleOutput = Array(3) { i ->
+            DoubleArray(3) { j ->
+                output[i][j].toDouble()
+            }
         }
 
-        return output
+        // 출력 데이터 로그 및 검증
+        Log.d("TicTacToeModel", "Output data:")
+        for (i in 0..2) {
+            Log.d("TicTacToeModel", "  [${doubleOutput[i][0]}, ${doubleOutput[i][1]}, ${doubleOutput[i][2]}]")
+
+            // 1을 넘는 값이 있는지 확인
+            for (j in 0..2) {
+                if (doubleOutput[i][j] > 1.0) {
+                    Log.w("TicTacToeModel", "Warning: prediction [$i][$j] = ${doubleOutput[i][j]} exceeds 1.0")
+                }
+            }
+        }
+
+        return doubleOutput
     }
 
     /**

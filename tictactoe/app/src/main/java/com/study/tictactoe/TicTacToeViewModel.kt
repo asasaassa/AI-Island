@@ -30,7 +30,7 @@ data class GameState(
     val board: Array<Array<Player>> = Array(3) { Array(3) { Player.NONE } },
     val currentPlayer: Player = Player.X,
     val winner: Player? = null,
-    val predictions: Array<FloatArray> = Array(3) { FloatArray(3) },
+    val predictions: Array<DoubleArray> = Array(3) { DoubleArray(3) },
     val isGameOver: Boolean = false
 ) {
     // Array는 구조적 동등성을 지원하지 않으므로 직접 구현
