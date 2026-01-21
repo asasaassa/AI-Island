@@ -164,10 +164,15 @@ class TicTacToeViewModel(application: Application) : AndroidViewModel(applicatio
     /**
      * AI가 자동으로 수를 둠
      *
+     * 우선순위:
+     * 1. 이길 수 있으면 바로 이기기
+     * 2. 상대가 이기려고 하면 막기
+     * 3. 모델 예측 사용
+     *
      * 난이도에 따라:
-     * - 초급: 70% 확률로 최고 점수 칸, 30% 랜덤
-     * - 중급: 85% 확률로 최고 점수 칸, 15% 랜덤
-     * - 고급: 무조건 최고 점수 칸 (100%)
+     * - 초급: 승리만 체크 (70% 확률), 방어 안 함
+     * - 중급: 승리 100%, 방어 85% 확률
+     * - 고급: 승리 + 방어 100%, 나머지는 모델 최고점
      */
     private fun makeAIMove() {
         val currentState = _gameState.value
@@ -176,35 +181,136 @@ class TicTacToeViewModel(application: Application) : AndroidViewModel(applicatio
             return
         }
 
+        val board = currentState.board
         val predictions = currentState.predictions
         val difficulty = currentState.difficulty
 
-        // 빈 칸 찾기
-        val emptyCells = mutableListOf<Pair<Int, Int>>()
-        for (i in 0..2) {
-            for (j in 0..2) {
-                if (currentState.board[i][j] == Player.NONE) {
-                    emptyCells.add(Pair(i, j))
+        var selectedCell: Pair<Int, Int>? = null
+        var moveReason = "model"
+
+        // 1순위: 이길 수 있는 칸 찾기
+        when (difficulty) {
+            Difficulty.EASY -> {
+                // 초급: 70% 확률로만 승리 체크
+                if (Math.random() < 0.7) {
+                    selectedCell = findWinningMove(board, Player.O)
+                    if (selectedCell != null) moveReason = "win"
+                }
+            }
+            else -> {
+                // 중급, 고급: 항상 승리 체크
+                selectedCell = findWinningMove(board, Player.O)
+                if (selectedCell != null) moveReason = "win"
+            }
+        }
+
+        // 2순위: 상대가 이기려고 하면 막기
+        if (selectedCell == null) {
+            when (difficulty) {
+                Difficulty.EASY -> {
+                    // 초급: 방어 안 함
+                }
+                Difficulty.MEDIUM -> {
+                    // 중급: 85% 확률로 방어
+                    if (Math.random() < 0.85) {
+                        selectedCell = findWinningMove(board, Player.X)
+                        if (selectedCell != null) moveReason = "block"
+                    }
+                }
+                Difficulty.HARD -> {
+                    // 고급: 항상 방어
+                    selectedCell = findWinningMove(board, Player.X)
+                    if (selectedCell != null) moveReason = "block"
                 }
             }
         }
 
-        if (emptyCells.isEmpty()) {
-            return
+        // 3순위: 모델 예측 사용
+        if (selectedCell == null) {
+            val emptyCells = mutableListOf<Pair<Int, Int>>()
+            for (i in 0..2) {
+                for (j in 0..2) {
+                    if (board[i][j] == Player.NONE) {
+                        emptyCells.add(Pair(i, j))
+                    }
+                }
+            }
+
+            if (emptyCells.isEmpty()) {
+                return
+            }
+
+            selectedCell = if (Math.random() < difficulty.bestMoveChance) {
+                // 최고 점수 칸 선택
+                emptyCells.maxByOrNull { (i, j) -> predictions[i][j] }!!
+            } else {
+                // 랜덤 칸 선택
+                emptyCells.random()
+            }
         }
 
-        // 난이도에 따라 수 선택
-        val selectedCell = if (Math.random() < difficulty.bestMoveChance) {
-            // 최고 점수 칸 선택
-            emptyCells.maxByOrNull { (i, j) -> predictions[i][j] }!!
-        } else {
-            // 랜덤 칸 선택 (고급은 100%이므로 여기 안 옴)
-            emptyCells.random()
-        }
-
-        Log.d("TicTacToe", "AI (${difficulty.name}) selects: ${selectedCell.first}, ${selectedCell.second} (score: ${predictions[selectedCell.first][selectedCell.second]})")
+        Log.d("TicTacToe", "AI (${difficulty.name}) selects [$moveReason]: ${selectedCell.first}, ${selectedCell.second}")
 
         makeMoveInternal(selectedCell.first, selectedCell.second)
+    }
+
+    /**
+     * 승리 가능한 칸 찾기 (또는 막아야 할 칸 찾기)
+     *
+     * 가로/세로/대각선에서 2개가 같은 플레이어이고 1개가 빈 칸인 경우를 찾습니다.
+     *
+     * @param board 게임 보드
+     * @param player 찾을 플레이어 (Player.O면 AI 승리칸, Player.X면 막을칸)
+     * @return 승리/방어 가능한 칸 (없으면 null)
+     */
+    private fun findWinningMove(board: Array<Array<Player>>, player: Player): Pair<Int, Int>? {
+        // 가로 확인
+        for (i in 0..2) {
+            val emptyCol = checkLine(board[i][0], board[i][1], board[i][2], player)
+            if (emptyCol != -1) {
+                return Pair(i, emptyCol)
+            }
+        }
+
+        // 세로 확인
+        for (j in 0..2) {
+            val emptyRow = checkLine(board[0][j], board[1][j], board[2][j], player)
+            if (emptyRow != -1) {
+                return Pair(emptyRow, j)
+            }
+        }
+
+        // 대각선 확인 (좌상 -> 우하)
+        val diag1Empty = checkLine(board[0][0], board[1][1], board[2][2], player)
+        if (diag1Empty != -1) {
+            return Pair(diag1Empty, diag1Empty)
+        }
+
+        // 대각선 확인 (우상 -> 좌하)
+        val diag2Empty = checkLine(board[0][2], board[1][1], board[2][0], player)
+        if (diag2Empty != -1) {
+            return Pair(diag2Empty, 2 - diag2Empty)
+        }
+
+        return null
+    }
+
+    /**
+     * 라인에서 2개가 같은 플레이어이고 1개가 빈 칸인지 확인
+     *
+     * @return 빈 칸의 인덱스 (0, 1, 2), 없으면 -1
+     */
+    private fun checkLine(cell1: Player, cell2: Player, cell3: Player, player: Player): Int {
+        val cells = listOf(cell1, cell2, cell3)
+        val playerCount = cells.count { it == player }
+        val noneCount = cells.count { it == Player.NONE }
+
+        // 2개가 해당 플레이어이고 1개가 빈 칸
+        if (playerCount == 2 && noneCount == 1) {
+            return cells.indexOfFirst { it == Player.NONE }
+        }
+
+        return -1
     }
 
     /**
