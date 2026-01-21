@@ -4,10 +4,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -18,12 +20,13 @@ import kotlin.math.min
 /**
  * 틱택토 게임의 메인 화면 Composable
  *
- * 게임 제목, 현재 플레이어/승자 표시, 게임 보드, 리셋 버튼으로 구성됩니다.
- * AI 예측은 빈 칸의 배경색으로 시각화됩니다 (어두울수록 좋은 수).
+ * 게임 제목, 난이도 선택, 현재 플레이어/승자 표시, 게임 보드, 리셋 버튼으로 구성됩니다.
+ * AI 예측은 빈 칸의 배경색으로 시각화됩니다 (밝을수록 좋은 수).
  *
  * @param gameState 현재 게임 상태
  * @param onCellClick 셀 클릭 이벤트 핸들러 (row, col)
  * @param onResetClick 리셋 버튼 클릭 이벤트 핸들러
+ * @param onDifficultyChange 난이도 변경 이벤트 핸들러
  * @param modifier Composable modifier
  */
 @Composable
@@ -31,6 +34,7 @@ fun TicTacToeScreen(
     gameState: GameState,
     onCellClick: (Int, Int) -> Unit,
     onResetClick: () -> Unit,
+    onDifficultyChange: (Difficulty) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -47,20 +51,59 @@ fun TicTacToeScreen(
             fontWeight = FontWeight.Bold
         )
 
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Difficulty selection
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(horizontal = 16.dp)
+        ) {
+            DifficultyButton(
+                text = "초급",
+                isSelected = gameState.difficulty == Difficulty.EASY,
+                onClick = {
+                    android.util.Log.d("TicTacToeScreen", "Easy button clicked")
+                    onDifficultyChange(Difficulty.EASY)
+                }
+            )
+            DifficultyButton(
+                text = "중급",
+                isSelected = gameState.difficulty == Difficulty.MEDIUM,
+                onClick = {
+                    android.util.Log.d("TicTacToeScreen", "Medium button clicked")
+                    onDifficultyChange(Difficulty.MEDIUM)
+                }
+            )
+            DifficultyButton(
+                text = "고급",
+                isSelected = gameState.difficulty == Difficulty.HARD,
+                onClick = {
+                    android.util.Log.d("TicTacToeScreen", "Hard button clicked")
+                    onDifficultyChange(Difficulty.HARD)
+                }
+            )
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
 
         // Current player or game status
         Text(
             text = when {
-                gameState.winner != null -> "Winner: ${gameState.winner}"
-                gameState.isGameOver -> "Game Over - Draw!"
-                else -> "Current Player: ${gameState.currentPlayer}"
+                gameState.winner != null -> when (gameState.winner) {
+                    Player.X -> "당신이 이겼습니다! 🎉"
+                    Player.O -> "AI가 이겼습니다!"
+                    else -> "무승부!"
+                }
+                gameState.isGameOver -> "무승부!"
+                gameState.currentPlayer == Player.X -> "당신의 차례 (X)"
+                else -> "AI의 차례 (O)..."
             },
             style = MaterialTheme.typography.titleLarge,
-            color = when (gameState.currentPlayer) {
-                Player.X -> Color(0xFF2196F3) // Blue for X
-                Player.O -> Color(0xFFF44336) // Red for O
-                Player.NONE -> Color.Gray
+            color = when {
+                gameState.winner == Player.X -> Color(0xFF4CAF50) // Green for user win
+                gameState.winner == Player.O -> Color(0xFFF44336) // Red for AI win
+                gameState.currentPlayer == Player.X -> Color(0xFF2196F3) // Blue for user
+                else -> Color(0xFFF44336) // Red for AI
             }
         )
 
@@ -71,6 +114,7 @@ fun TicTacToeScreen(
             board = gameState.board,
             predictions = gameState.predictions,
             isGameOver = gameState.isGameOver,
+            currentPlayer = gameState.currentPlayer,
             onCellClick = onCellClick
         )
 
@@ -116,6 +160,7 @@ fun TicTacToeBoard(
     board: Array<Array<Player>>,
     predictions: Array<DoubleArray>,
     isGameOver: Boolean,
+    currentPlayer: Player,
     onCellClick: (Int, Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -155,6 +200,7 @@ fun TicTacToeBoard(
                         player = board[i][j],
                         predictionScore = normalizedScore,
                         isGameOver = isGameOver,
+                        isUserTurn = currentPlayer == Player.X,
                         onClick = { onCellClick(i, j) }
                     )
                 }
@@ -180,6 +226,7 @@ fun GameCell(
     player: Player,
     predictionScore: Float,
     isGameOver: Boolean,
+    isUserTurn: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -197,8 +244,8 @@ fun GameCell(
             .size(100.dp)
             .background(backgroundColor)
             .border(2.dp, Color.Black)
-            // 게임이 끝나지 않고 빈 칸일 때만 클릭 가능
-            .clickable(enabled = !isGameOver && player == Player.NONE) { onClick() },
+            // 게임이 끝나지 않고, 빈 칸이고, 사용자 차례일 때만 클릭 가능
+            .clickable(enabled = !isGameOver && player == Player.NONE && isUserTurn) { onClick() },
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -214,6 +261,35 @@ fun GameCell(
                 Player.O -> Color(0xFFF44336) // 빨간색 (O)
                 Player.NONE -> Color.Transparent
             }
+        )
+    }
+}
+
+/**
+ * 난이도 선택 버튼
+ */
+@Composable
+fun DifficultyButton(
+    text: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val backgroundColor = if (isSelected) Color(0xFF2196F3) else Color.LightGray
+    val textColor = if (isSelected) Color.White else Color.DarkGray
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(backgroundColor)
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            color = textColor,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
         )
     }
 }

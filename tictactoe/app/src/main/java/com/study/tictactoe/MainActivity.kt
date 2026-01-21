@@ -37,16 +37,13 @@ class MainActivity : ComponentActivity() {
                         )
                     )
 
-                    // 게임 상태를 실시간으로 관찰
-                    // State.value를 Composable 내에서 읽으면 자동으로 구독됨
-                    // 상태 변경 시 자동으로 UI가 recompose됨
-                    val currentGameState = viewModel.gameState.value
-
                     // 게임 화면 표시
+                    // viewModel.gameState.value를 직접 전달하여 State 변경 시 자동 recomposition
                     TicTacToeScreen(
-                        gameState = currentGameState,
+                        gameState = viewModel.gameState.value,
                         onCellClick = { row, col -> viewModel.makeMove(row, col) },
                         onResetClick = { viewModel.resetGame() },
+                        onDifficultyChange = { difficulty -> viewModel.setDifficulty(difficulty) },
                         modifier = Modifier.padding(innerPadding)
                     )
                 }

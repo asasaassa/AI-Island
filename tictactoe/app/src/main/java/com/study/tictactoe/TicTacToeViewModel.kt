@@ -13,8 +13,17 @@ import androidx.compose.runtime.State
  */
 enum class Player {
     NONE,  // 빈 칸
-    X,     // X 플레이어
-    O      // O 플레이어
+    X,     // X 플레이어 (사용자)
+    O      // O 플레이어 (AI)
+}
+
+/**
+ * AI 난이도
+ */
+enum class Difficulty(val bestMoveChance: Double) {
+    EASY(0.70),    // 초급: 70% 확률로 최고 점수 칸
+    MEDIUM(0.85),  // 중급: 85% 확률로 최고 점수 칸
+    HARD(1.0)      // 고급: 100% 최고 점수 칸
 }
 
 /**
@@ -25,13 +34,15 @@ enum class Player {
  * @property winner 승자 (null이면 아직 승자 없음)
  * @property predictions AI 모델의 예측 점수 (각 칸마다 얼마나 좋은 수인지)
  * @property isGameOver 게임 종료 여부 (승자가 나오거나 무승부)
+ * @property difficulty AI 난이도
  */
 data class GameState(
     val board: Array<Array<Player>> = Array(3) { Array(3) { Player.NONE } },
     val currentPlayer: Player = Player.X,
     val winner: Player? = null,
     val predictions: Array<DoubleArray> = Array(3) { DoubleArray(3) },
-    val isGameOver: Boolean = false
+    val isGameOver: Boolean = false,
+    val difficulty: Difficulty = Difficulty.MEDIUM
 ) {
     // Array는 구조적 동등성을 지원하지 않으므로 직접 구현
     override fun equals(other: Any?): Boolean {
@@ -87,6 +98,7 @@ class TicTacToeViewModel(application: Application) : AndroidViewModel(applicatio
     /**
      * 지정된 위치에 현재 플레이어의 말을 놓음
      *
+     * Player X (사용자)만 직접 호출할 수 있습니다.
      * 게임이 끝났거나 해당 칸이 이미 차있으면 무시합니다.
      * 수를 둔 후 승자를 확인하고, 게임이 계속되면 플레이어를 교체합니다.
      *
@@ -96,10 +108,33 @@ class TicTacToeViewModel(application: Application) : AndroidViewModel(applicatio
     fun makeMove(row: Int, col: Int) {
         val currentState = _gameState.value
 
+        // Player X (사용자)만 직접 수를 둘 수 있음
+        if (currentState.currentPlayer != Player.X) {
+            return
+        }
+
         // 게임이 끝났거나 이미 말이 있는 칸이면 무시
         if (currentState.isGameOver || currentState.board[row][col] != Player.NONE) {
             return
         }
+
+        // 사용자의 수를 둠
+        makeMoveInternal(row, col)
+
+        // AI 차례이면 자동으로 수를 둠
+        if (_gameState.value.currentPlayer == Player.O && !_gameState.value.isGameOver) {
+            // AI가 생각하는 시간 (1.2초)
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                makeAIMove()
+            }, 1200)
+        }
+    }
+
+    /**
+     * 실제로 수를 두는 내부 함수
+     */
+    private fun makeMoveInternal(row: Int, col: Int) {
+        val currentState = _gameState.value
 
         // 새 보드 생성 (불변성 유지)
         val newBoard = currentState.board.map { it.clone() }.toTypedArray()
@@ -124,6 +159,52 @@ class TicTacToeViewModel(application: Application) : AndroidViewModel(applicatio
         if (!isGameOver) {
             updatePredictions()
         }
+    }
+
+    /**
+     * AI가 자동으로 수를 둠
+     *
+     * 난이도에 따라:
+     * - 초급: 70% 확률로 최고 점수 칸, 30% 랜덤
+     * - 중급: 85% 확률로 최고 점수 칸, 15% 랜덤
+     * - 고급: 무조건 최고 점수 칸 (100%)
+     */
+    private fun makeAIMove() {
+        val currentState = _gameState.value
+
+        if (currentState.isGameOver || currentState.currentPlayer != Player.O) {
+            return
+        }
+
+        val predictions = currentState.predictions
+        val difficulty = currentState.difficulty
+
+        // 빈 칸 찾기
+        val emptyCells = mutableListOf<Pair<Int, Int>>()
+        for (i in 0..2) {
+            for (j in 0..2) {
+                if (currentState.board[i][j] == Player.NONE) {
+                    emptyCells.add(Pair(i, j))
+                }
+            }
+        }
+
+        if (emptyCells.isEmpty()) {
+            return
+        }
+
+        // 난이도에 따라 수 선택
+        val selectedCell = if (Math.random() < difficulty.bestMoveChance) {
+            // 최고 점수 칸 선택
+            emptyCells.maxByOrNull { (i, j) -> predictions[i][j] }!!
+        } else {
+            // 랜덤 칸 선택 (고급은 100%이므로 여기 안 옴)
+            emptyCells.random()
+        }
+
+        Log.d("TicTacToe", "AI (${difficulty.name}) selects: ${selectedCell.first}, ${selectedCell.second} (score: ${predictions[selectedCell.first][selectedCell.second]})")
+
+        makeMoveInternal(selectedCell.first, selectedCell.second)
     }
 
     /**
@@ -232,7 +313,19 @@ class TicTacToeViewModel(application: Application) : AndroidViewModel(applicatio
      * 새 게임을 시작하고 AI 예측을 업데이트합니다.
      */
     fun resetGame() {
-        _gameState.value = GameState()
+        val currentDifficulty = _gameState.value.difficulty
+        _gameState.value = GameState(difficulty = currentDifficulty)
+        updatePredictions()
+    }
+
+    /**
+     * AI 난이도 변경
+     *
+     * 난이도 변경 시 게임을 자동으로 리셋합니다.
+     */
+    fun setDifficulty(difficulty: Difficulty) {
+        Log.d("TicTacToe", "Difficulty changed to: ${difficulty.name}")
+        _gameState.value = GameState(difficulty = difficulty)
         updatePredictions()
     }
 
