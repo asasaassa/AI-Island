@@ -1,6 +1,7 @@
 package com.study.tictactoe
 
 import android.content.Context
+import android.util.Log
 import org.tensorflow.lite.Interpreter
 import java.io.FileInputStream
 import java.nio.MappedByteBuffer
@@ -24,6 +25,14 @@ class TicTacToeModel(context: Context) {
             val modelBuffer = loadModelFile(context)
             // TFLite 인터프리터 초기화
             interpreter = Interpreter(modelBuffer)
+
+            // 모델의 입력/출력 shape 확인
+            val inputTensor = interpreter?.getInputTensor(0)
+            val outputTensor = interpreter?.getOutputTensor(0)
+            Log.d("TicTacToeModel", "Input shape: ${inputTensor?.shape()?.contentToString()}")
+            Log.d("TicTacToeModel", "Output shape: ${outputTensor?.shape()?.contentToString()}")
+            Log.d("TicTacToeModel", "Input type: ${inputTensor?.dataType()}")
+            Log.d("TicTacToeModel", "Output type: ${outputTensor?.dataType()}")
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -39,7 +48,7 @@ class TicTacToeModel(context: Context) {
      * @return 메모리 매핑된 모델 파일 버퍼
      */
     private fun loadModelFile(context: Context): MappedByteBuffer {
-        val fileDescriptor = context.assets.openFd("tictactoe.tflite")
+        val fileDescriptor = context.assets.openFd("tictactoe_new.tflite")
         val inputStream = FileInputStream(fileDescriptor.fileDescriptor)
         val fileChannel = inputStream.channel
         val startOffset = fileDescriptor.startOffset
@@ -64,11 +73,25 @@ class TicTacToeModel(context: Context) {
         // 게임 보드를 모델 입력 형식으로 변환
         val input = convertBoardToInput(board, currentPlayer)
 
-        // 출력 배열 준비 - 모델은 batch dimension 없이 [3, 3] shape 사용
+        // 입력 데이터 로그
+        Log.d("TicTacToeModel", "Input data:")
+        for (i in 0..2) {
+            Log.d("TicTacToeModel", "  [${input[i][0]}, ${input[i][1]}, ${input[i][2]}]")
+        }
+
+        // 출력 배열 준비
+        // 입력: [3, 3]
+        // 출력: [3, 3]
         val output = Array(3) { FloatArray(3) }
 
         // TFLite 모델 추론 실행
         interpreter?.run(input, output)
+
+        // 출력 데이터 로그
+        Log.d("TicTacToeModel", "Output data:")
+        for (i in 0..2) {
+            Log.d("TicTacToeModel", "  [${output[i][0]}, ${output[i][1]}, ${output[i][2]}]")
+        }
 
         return output
     }
@@ -86,7 +109,7 @@ class TicTacToeModel(context: Context) {
      *
      * @param board 원본 게임 보드 (0, 1, 2로 표현)
      * @param currentPlayer 현재 플레이어 (1 = X, 2 = O)
-     * @return 모델 입력용 3x3 float 배열
+     * @return 모델 입력용 [3, 3] float 배열
      */
     private fun convertBoardToInput(board: Array<IntArray>, currentPlayer: Int): Array<FloatArray> {
         val input = Array(3) { FloatArray(3) }

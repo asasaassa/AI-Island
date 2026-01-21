@@ -1,6 +1,7 @@
 package com.study.tictactoe
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -151,6 +152,12 @@ class TicTacToeViewModel(application: Application) : AndroidViewModel(applicatio
 
         // AI 모델로 예측 수행
         val predictions = model.predict(boardInt, currentPlayerInt)
+
+        // 디버깅: 예측 결과 로그 출력
+        Log.d("TicTacToe", "Predictions for player $currentPlayerInt:")
+        for (i in 0..2) {
+            Log.d("TicTacToe", "  [${predictions[i][0]}, ${predictions[i][1]}, ${predictions[i][2]}]")
+        }
 
         // 예측 결과를 게임 상태에 반영
         _gameState.value = currentState.copy(predictions = predictions)

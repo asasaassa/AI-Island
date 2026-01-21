@@ -140,9 +140,13 @@ fun TicTacToeBoard(
             Row {
                 for (j in 0..2) {
                     // 각 셀의 예측 점수를 0-1 범위로 정규화
-                    // 이미 말이 놓인 칸은 점수를 0으로 설정
-                    val normalizedScore = if (board[i][j] == Player.NONE && range > 0) {
-                        (predictions[i][j] - minPred) / range
+                    // range가 0이면 (모든 예측이 같으면) 중간값 0.5 사용
+                    val normalizedScore = if (board[i][j] == Player.NONE) {
+                        if (range > 0.001f) {
+                            (predictions[i][j] - minPred) / range
+                        } else {
+                            0.5f // 모든 예측이 같으면 중간 회색
+                        }
                     } else {
                         0f
                     }
