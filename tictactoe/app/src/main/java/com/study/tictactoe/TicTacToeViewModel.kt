@@ -42,7 +42,8 @@ data class GameState(
     val winner: Player? = null,
     val predictions: Array<DoubleArray> = Array(3) { DoubleArray(3) },
     val isGameOver: Boolean = false,
-    val difficulty: Difficulty = Difficulty.MEDIUM
+    val difficulty: Difficulty = Difficulty.MEDIUM,
+    val urgentDefenseCell: Pair<Int, Int>? = null // 급하게 막아야 할 칸
 ) {
     // Array는 구조적 동등성을 지원하지 않으므로 직접 구현
     override fun equals(other: Any?): Boolean {
@@ -318,6 +319,8 @@ class TicTacToeViewModel(application: Application) : AndroidViewModel(applicatio
      *
      * 게임 보드를 정수 배열로 변환하고 모델에 입력하여
      * 각 위치의 점수를 얻습니다. UI에서 이 점수를 시각화합니다.
+     *
+     * Player X(사용자) 차례일 때는 상대방(O)의 승리 가능 칸도 찾아서 표시합니다.
      */
     private fun updatePredictions() {
         val currentState = _gameState.value
@@ -346,8 +349,22 @@ class TicTacToeViewModel(application: Application) : AndroidViewModel(applicatio
             Log.d("TicTacToe", "  [${predictions[i][0]}, ${predictions[i][1]}, ${predictions[i][2]}]")
         }
 
+        // Player X 차례일 때, 상대방(O)이 이길 수 있는 칸을 찾아서 강조 표시
+        val urgentDefenseCell = if (currentState.currentPlayer == Player.X) {
+            findWinningMove(currentState.board, Player.O)
+        } else {
+            null
+        }
+
+        if (urgentDefenseCell != null) {
+            Log.d("TicTacToe", "Urgent defense needed at: ${urgentDefenseCell.first}, ${urgentDefenseCell.second}")
+        }
+
         // 예측 결과를 게임 상태에 반영
-        _gameState.value = currentState.copy(predictions = predictions)
+        _gameState.value = currentState.copy(
+            predictions = predictions,
+            urgentDefenseCell = urgentDefenseCell
+        )
     }
 
     /**

@@ -115,6 +115,7 @@ fun TicTacToeScreen(
             predictions = gameState.predictions,
             isGameOver = gameState.isGameOver,
             currentPlayer = gameState.currentPlayer,
+            urgentDefenseCell = gameState.urgentDefenseCell,
             onCellClick = onCellClick
         )
 
@@ -134,11 +135,21 @@ fun TicTacToeScreen(
 
         // AI Hint
         if (!gameState.isGameOver) {
-            Text(
-                text = "밝은 칸 = AI가 추천하는 좋은 수",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray
-            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "밝은 칸 = AI가 추천하는 좋은 수",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
+                )
+                if (gameState.urgentDefenseCell != null) {
+                    Text(
+                        text = "빨간 칸 = 급하게 막아야 할 수!",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFFF44336),
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
         }
     }
 }
@@ -161,6 +172,7 @@ fun TicTacToeBoard(
     predictions: Array<DoubleArray>,
     isGameOver: Boolean,
     currentPlayer: Player,
+    urgentDefenseCell: Pair<Int, Int>?,
     onCellClick: (Int, Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -201,6 +213,7 @@ fun TicTacToeBoard(
                         predictionScore = normalizedScore,
                         isGameOver = isGameOver,
                         isUserTurn = currentPlayer == Player.X,
+                        isUrgentDefense = urgentDefenseCell?.let { it.first == i && it.second == j } ?: false,
                         onClick = { onCellClick(i, j) }
                     )
                 }
@@ -227,16 +240,20 @@ fun GameCell(
     predictionScore: Float,
     isGameOver: Boolean,
     isUserTurn: Boolean,
+    isUrgentDefense: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // AI 예측 기반 배경색 (밝을수록 = 점수가 높음 = 좋은 수)
-    // 0.3 ~ 1.0 범위로 조절 (너무 어둡거나 밝지 않게)
-    val backgroundColor = if (player == Player.NONE && !isGameOver) {
-        val intensity = 0.3f + predictionScore * 0.7f
-        Color(intensity, intensity, intensity)
-    } else {
-        Color.White
+    // 배경색 결정
+    val backgroundColor = when {
+        // 급하게 막아야 할 칸 (빨간색 강조)
+        isUrgentDefense && player == Player.NONE && !isGameOver -> Color(1.0f, 0.3f, 0.3f)
+        // AI 예측 기반 배경색 (밝을수록 = 점수가 높음 = 좋은 수)
+        player == Player.NONE && !isGameOver -> {
+            val intensity = 0.3f + predictionScore * 0.7f
+            Color(intensity, intensity, intensity)
+        }
+        else -> Color.White
     }
 
     Box(
